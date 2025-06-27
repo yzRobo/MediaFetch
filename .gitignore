@@ -152,3 +152,4 @@ package-lock.json
 *.flv
 bin/yt-dlp.exe
 MediaFetch_RepoPreview.png
+public/images/MediaFetch_RAW.png

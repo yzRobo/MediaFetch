@@ -1,0 +1,109 @@
+<!--  // index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaFetch</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <img src="/images/MediaFetch_Header_No_BG.png" alt="MediaFetch Logo" id="header-logo">
+        <p class="subtitle">Download videos and audio from your favorite platforms</p>
+        
+        <form id="download-form">
+            <!-- Container for dynamic sections -->
+            <div id="sections-container">
+                <!-- Template Section (will be cloned) -->
+                <div class="download-section is-public">
+                    <button type="button" class="remove-section-btn" style="display: none;">×</button>
+                    <h3 class="section-title">Section 1</h3>
+
+                    <!-- Download Type Toggle -->
+                    <div class="form-group form-group-toggle">
+                        <label>Download Type</label>
+                        <div class="toggle-switch">
+                            <input type="radio" id="s1-private" name="download-type-s1" class="download-type" value="private">
+                            <label for="s1-private">Private</label>
+                            <input type="radio" id="s1-public" name="download-type-s1" class="download-type" value="public" checked>
+                            <label for="s1-public">Public</label>
+                            <span class="toggle-knob"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Filename Prefix (Major)</label>
+                            <input type="text" class="prefix-major" value="01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Filename Prefix Start (Minor)</label>
+                            <input type="number" class="prefix-minor" value="1" required>
+                        </div>
+                    </div>
+
+                    <!-- Wrapper for domain fields -->
+                    <div class="domain-fields-wrapper">
+                        <div class="form-group">
+                            <label>Default Domain/Referer for this Section</label>
+                            <input type="text" class="default-domain" placeholder="https://www.example.com/ (optional for most sites)">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="download-format">Download Format</label>
+                        <select class="download-format">
+                            <option value="video-audio" selected>Video + Audio</option>
+                            <option value="video-only">Video Only</option>
+                            <option value="audio-mp3">Audio Only (.mp3)</option>
+                            <option value="audio-m4a">Audio Only (.m4a)</option>
+                        </select>
+                    </div>
+                    
+                    <hr class="subtle-hr">
+
+                    <label class="video-list-label">Video URLs</label>
+                    <div class="video-rows-container">
+                        <!-- Template Video Row (will be cloned) -->
+                        <div class="video-row">
+                            <div class="video-row-main">
+                                <input type="text" class="video-url" placeholder="Paste video URL (YouTube, Vimeo, Twitter, etc.)" required>
+                                <div class="domain-fields-wrapper">
+                                    <input type="text" class="domain-override" placeholder="Optional: Override domain for this URL">
+                                </div>
+                            </div>
+                            <div class="video-row-controls">
+                                <span class="platform-indicator"></span>
+                                <button type="button" class="remove-video-btn">×</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="add-video-btn">+ Add Video URL</button>
+                </div>
+            </div>
+            
+            <button type="button" id="add-section-btn">+ Add Another Section</button>
+            <hr>
+            <button type="submit" id="submit-btn">Start All Downloads</button>
+        </form>
+
+        <div id="results-container" class="hidden">
+            <h2>Download Progress</h2>
+            <button type="button" id="cancel-btn" class="btn-danger">Cancel All</button>
+
+            <div id="progress-bars"></div>
+            
+            <div class="logs-header">
+                <h2>Logs</h2>
+                <button type="button" id="toggle-logs-btn" class="btn-secondary">Show Logs</button>
+            </div>
+            <pre id="log-output"></pre>
+        </div>
+    </div>
+
+    <script src="/socket.io.min.js"></script>
+    <script src="/client.js"></script>
+</body>
+</html>

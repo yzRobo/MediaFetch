@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  mediafetch:
+    build: .
+    # Or use pre-built image:
+    # image: yourusername/mediafetch:latest
+    container_name: mediafetch
+    ports:
+      - "8234:8234"
+    volumes:
+      # Temp directory for processing files before streaming
+      - ./temp:/app/temp
+    environment:
+      - NODE_ENV=production
+      - PORT=8234
+      
+      # Optional: Enable authentication
+      - ENABLE_AUTH=false
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=changeme
+      
+      # Optional: Enable webhooks
+      - ENABLE_WEBHOOKS=false
+      - WEBHOOK_URL=
+      - WEBHOOK_SECRET=
+      
+      # Performance settings
+      - MAX_CONCURRENT_DOWNLOADS=3
+      - CLEANUP_INTERVAL=3600000  # Clean temp files every hour
+      - MAX_FILE_AGE=7200000      # Delete temp files older than 2 hours
+      
+    restart: unless-stopped
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M

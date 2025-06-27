@@ -1,0 +1,35 @@
+{
+    "name": "mediafetch",
+    "version": "1.0.0",
+    "description": "Self-hosted media archival tool for personal content backup",
+    "main": "server.js",
+    "scripts": {
+      "start": "node server.js",
+      "dev": "nodemon server.js",
+      "postinstall": "node scripts/setup-yt-dlp.js"
+    },
+    "keywords": [
+      "media",
+      "archival",
+      "self-hosted",
+      "backup",
+      "personal"
+    ],
+    "author": "Your Name",
+    "license": "GPL-3.0",
+    "dependencies": {
+      "express": "^4.19.2",
+      "socket.io": "^4.7.5",
+      "node-fetch": "^3.3.2"
+    },
+    "devDependencies": {
+      "nodemon": "^3.0.1"
+    },
+    "engines": {
+      "node": ">=18.0.0"
+    },
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/yzRobo/MediaFetch.git"
+    }
+  }

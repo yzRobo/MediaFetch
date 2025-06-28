@@ -94,20 +94,32 @@ const preparedDownloads = new Map();
 let isCancelled = false;
 let activeProcesses = new Map();
 
-// Check if yt-dlp exists on startup
-async function checkYtDlp() {
+// Check if yt-dlp and ffmpeg exist on startup
+async function checkDependencies() {
+    let allGood = true;
+    
     try {
         await fs.promises.access(ytDlpPath, fs.constants.F_OK);
         console.log('✓ yt-dlp found at:', ytDlpPath);
-        return true;
     } catch (err) {
         console.error('✗ yt-dlp not found at:', ytDlpPath);
         console.error('Please run: npm install');
-        return false;
+        allGood = false;
     }
+    
+    try {
+        await fs.promises.access(ffmpegPath, fs.constants.F_OK);
+        console.log('✓ ffmpeg found at:', ffmpegPath);
+    } catch (err) {
+        console.error('✗ ffmpeg not found at:', ffmpegPath);
+        console.error('Note: ffmpeg is required for video+audio downloads');
+        console.error('Please ensure ffmpeg-static is installed or run: npm install');
+    }
+    
+    return allGood;
 }
 
-checkYtDlp();
+checkDependencies();
 
 // Platform detection
 function detectPlatform(url) {
@@ -121,6 +133,26 @@ function detectPlatform(url) {
     if (urlLower.includes('threads.net')) return 'threads';
     
     return 'other';
+}
+
+// Spawn function for cross-platform compatibility
+function spawnYtDlp(args, options = {}) {
+    const cleanArgs = args.map(arg => String(arg));
+    
+    if (platform === 'win32') {
+        return spawn(ytDlpPath, cleanArgs, {
+            ...options,
+            windowsHide: true,
+            shell: false,
+            stdio: options.stdio || 'pipe'
+        });
+    } else {
+        return spawn(ytDlpPath, cleanArgs, {
+            ...options,
+            shell: false,
+            stdio: options.stdio || 'pipe'
+        });
+    }
 }
 
 // WebSocket handling
@@ -268,9 +300,14 @@ async function prepareDownload(videoInfo, index, total, filenamePrefix, format, 
             infoArgs.push('--referer', videoInfo.domain);
         }
         
+        // Add no-playlist flag here to prevent downloading entire playlists
+        if (platform !== 'instagram') {
+            infoArgs.push('--no-playlist');
+        }
+        
         infoArgs.push(videoInfo.url);
         
-        const infoProcess = spawn(ytDlpPath, infoArgs);
+        const infoProcess = spawnYtDlp(infoArgs);
         
         infoProcess.stdout.on('data', (data) => {
             videoInfoJson += data.toString();
@@ -377,7 +414,7 @@ app.get('/download/:downloadId', async (req, res) => {
         return res.status(404).send('Download not found');
     }
     
-    const { url, domain, format, filename, index } = downloadInfo;
+    const { url, domain, format, filename, index, duration, platform } = downloadInfo;
     
     console.log(`Starting download: ${filename}`);
     
@@ -409,7 +446,7 @@ app.get('/download/:downloadId', async (req, res) => {
             break;
         case 'video-only':
             // For platforms other than YouTube, we need to handle differently
-            if (downloadInfo.platform === 'youtube') {
+            if (platform === 'youtube') {
                 ytDlpArgs.push('-f', 'bestvideo[ext=mp4]/bestvideo');
             } else {
                 // For other platforms, download best and strip audio with ffmpeg
@@ -418,8 +455,14 @@ app.get('/download/:downloadId', async (req, res) => {
             }
             break;
         default:
-            ytDlpArgs.push('-f', 'bestvideo+bestaudio/best[ext=mp4]/best');
-            ytDlpArgs.push('--merge-output-format', 'mp4');
+            // For video+audio, use simpler format selection that's more reliable
+            ytDlpArgs.push('-f', 'best[ext=mp4]/best');
+            // Don't use merge-output-format with stdout
+            // ytDlpArgs.push('--merge-output-format', 'mp4');
+            // Don't use remux-video with stdout
+            // ytDlpArgs.push('--remux-video', 'mp4');
+            // Metadata embedding might cause issues with stdout
+            // ytDlpArgs.push('--embed-subs', '--embed-thumbnail', '--add-metadata');
             break;
     }
     
@@ -427,19 +470,30 @@ app.get('/download/:downloadId', async (req, res) => {
     ytDlpArgs.push('-o', '-');  // Output to stdout
     ytDlpArgs.push('--no-warnings');
     ytDlpArgs.push('--no-progress');
-    ytDlpArgs.push('--no-playlist');
+    
+    // Conditionally allow multi-file downloads ONLY for Instagram carousels
+    if (platform === 'instagram') {
+        console.log('Instagram post detected. Multi-video download enabled.');
+    } else {
+        ytDlpArgs.push('--no-playlist');
+    }
     
     // Add ffmpeg location if available
     if (fs.existsSync(ffmpegPath)) {
         ytDlpArgs.push('--ffmpeg-location', ffmpegPath);
+        console.log('Using ffmpeg at:', ffmpegPath);
+    } else {
+        console.log('Warning: ffmpeg not found at expected location, using system ffmpeg');
     }
     
     ytDlpArgs.push(url);
     
     console.log('Starting download command...');
+    console.log('Command:', ytDlpPath);
+    console.log('Arguments:', ytDlpArgs.join(' '));
     
     // Start download
-    const downloadProcess = spawn(ytDlpPath, ytDlpArgs, {
+    const downloadProcess = spawnYtDlp(ytDlpArgs, {
         maxBuffer: 1024 * 1024 * 1024, // 1GB buffer
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -449,21 +503,60 @@ app.get('/download/:downloadId', async (req, res) => {
     
     let totalBytes = 0;
     let hasError = false;
+    let lastProgress = 0;
+    let debugOutput = '';
+    
+    // Parse progress from stderr
+    downloadProcess.stderr.on('data', (data) => {
+        const output = data.toString();
+        debugOutput += output;
+        
+        // Log first few lines of stderr for debugging
+        if (debugOutput.length < 1000) {
+            console.log('yt-dlp stderr:', output.trim());
+        }
+        
+        // Look for download progress
+        const percentMatch = output.match(/\[download\]\s+(\d+\.?\d*)%/);
+        if (percentMatch) {
+            const percent = parseFloat(percentMatch[1]);
+            if (percent > lastProgress) {
+                lastProgress = percent;
+                io.emit("download-progress", {
+                    downloadId,
+                    index,
+                    percentage: Math.round(percent),
+                    bytesDownloaded: totalBytes
+                });
+            }
+        }
+        
+        // Check if it's downloading audio only
+        if (output.includes('[ExtractAudio]') || output.includes('Extracting audio')) {
+            console.warn('WARNING: yt-dlp is extracting audio only!');
+            io.emit("log", { 
+                type: "warning", 
+                message: "Warning: Download appears to be audio-only. Check format settings." 
+            });
+        }
+        
+        // Check for format selection
+        if (output.includes('format:')) {
+            console.log('Selected format:', output);
+        }
+        
+        // Check for errors
+        if (output.includes('ERROR') || output.includes('error:')) {
+            console.error(`Download error for ${filename}:`, output);
+            hasError = true;
+        }
+    });
     
     // Pipe stdout to response
     downloadProcess.stdout.pipe(res);
     
     downloadProcess.stdout.on('data', (chunk) => {
         totalBytes += chunk.length;
-    });
-    
-    downloadProcess.stderr.on('data', (data) => {
-        const error = data.toString();
-        // Only log actual errors, not progress info
-        if (error.includes('ERROR') || error.includes('error:')) {
-            console.error(`Download error for ${filename}:`, error);
-            hasError = true;
-        }
     });
     
     downloadProcess.on('error', (error) => {
@@ -489,6 +582,18 @@ app.get('/download/:downloadId', async (req, res) => {
             totalBytes
         });
         
+        // Send webhook if enabled
+        if (config.enableWebhooks && config.webhookUrl) {
+            sendWebhook('download.completed', {
+                downloadId,
+                title: downloadInfo.title,
+                filename,
+                status,
+                totalBytes,
+                duration
+            });
+        }
+        
         // Cleanup
         setTimeout(() => {
             preparedDownloads.delete(downloadId);
@@ -512,6 +617,46 @@ app.get('/download/:downloadId', async (req, res) => {
         clientDisconnected = true;
     });
 });
+
+// Webhook function
+async function sendWebhook(event, data) {
+    if (!config.enableWebhooks || !config.webhookUrl) return;
+    
+    const payload = {
+        event,
+        timestamp: new Date().toISOString(),
+        service: 'MediaFetch',
+        data
+    };
+    
+    try {
+        const axios = require('axios');
+        await axios.post(config.webhookUrl, payload, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Webhook-Secret': config.webhookSecret || ''
+            }
+        });
+    } catch (error) {
+        console.error('Webhook error:', error.message);
+    }
+}
+
+// Utility functions
+function formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 // Start server
 httpServer.listen(config.port, '0.0.0.0', () => {

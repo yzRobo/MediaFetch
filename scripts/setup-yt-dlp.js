@@ -1,4 +1,4 @@
-// Replace scripts/setup-yt-dlp.js with this enhanced version
+// scripts/setup-yt-dlp.js
 
 const { promises: fs } = require('fs');
 const path = require('path');

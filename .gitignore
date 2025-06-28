@@ -153,3 +153,4 @@ package-lock.json
 bin/yt-dlp.exe
 MediaFetch_RepoPreview.png
 public/images/MediaFetch_RAW.png
+*.webp

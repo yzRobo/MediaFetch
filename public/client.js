@@ -365,11 +365,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     
     // Update progress during download
-    socket.on("download-progress", ({ downloadId, index, bytesDownloaded }) => {
+    socket.on("download-progress", ({ downloadId, index, bytesDownloaded, percentage }) => {
+        const progressBar = document.getElementById(`progress-bar-${index}`);
         const details = document.getElementById(`details-${index}`);
-        if (details && bytesDownloaded) {
-            const size = formatBytes(bytesDownloaded);
-            details.textContent = `Downloading... ${size}`;
+        const speedSpan = document.getElementById(`speed-${index}`);
+        
+        if (percentage && progressBar) {
+            progressBar.style.width = `${percentage}%`;
+            progressBar.textContent = `${percentage}%`;
+        }
+        
+        if (details) {
+            if (bytesDownloaded) {
+                const size = formatBytes(bytesDownloaded);
+                details.textContent = `Downloading... ${size}`;
+            } else {
+                details.textContent = `Downloading... ${percentage || 0}%`;
+            }
         }
     });
     

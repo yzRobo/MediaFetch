@@ -1,4 +1,5 @@
-# MediaFetch
+![MediaFetch_RepoPreview](https://github.com/user-attachments/assets/d086293e-ccd9-4814-b937-a431ad9027f2)
+
 
 A self-hosted media archival tool for personal content backup. Archive your own content from various platforms for personal use.
 

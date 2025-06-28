@@ -1,7 +1,7 @@
 FROM node:18-alpine
 
-# Install ffmpeg and other dependencies
-RUN apk add --no-cache ffmpeg python3 make g++
+# Install ffmpeg, python3, and curl
+RUN apk add --no-cache ffmpeg python3 py3-pip curl
 
 WORKDIR /app
 
@@ -14,8 +14,10 @@ RUN npm ci --only=production
 # Copy application files
 COPY . .
 
-# Download yt-dlp during build
-RUN npm run postinstall
+# Download yt-dlp directly in Docker
+RUN mkdir -p /app/bin && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /app/bin/yt-dlp && \
+    chmod +x /app/bin/yt-dlp
 
 # Create temp directory for processing
 RUN mkdir -p /app/temp && chmod 777 /app/temp

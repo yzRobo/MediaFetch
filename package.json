@@ -15,7 +15,7 @@
       "backup",
       "personal"
     ],
-    "author": "Your Name",
+    "author": "yzRobo",
     "license": "GPL-3.0",
     "dependencies": {
       "express": "^4.19.2",
